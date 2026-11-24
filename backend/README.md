@@ -27,6 +27,23 @@ npm start
 
 Open [http://localhost:5000](http://localhost:5000), not `index.html` directly. Check the connection at [http://localhost:5000/api/health](http://localhost:5000/api/health).
 
+## Deploy on Render
+
+Render does not provide a managed MySQL database by default. Create a MySQL database with an external provider and allow Render network access.
+
+Deploy this repository using `render.yaml` or create a Render Web Service with:
+
+- **Root Directory:** `backend`
+- **Build Command:** `npm ci`
+- **Start Command:** `npm start`
+- **Health Check Path:** `/api/health`
+
+Set `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `DB_SSL=true` in the Render dashboard.
+
+If the provider requires a CA certificate, set `DB_SSL_CA` to its path. The included `ca.pem` is used automatically when `DB_SSL=true` and `DB_SSL_CA` is blank.
+
+Do not add real database passwords to `backend/.env` or commit them. Keep production secrets in Render environment settings.
+
 ## API used by the app
 
 - `GET /api/health`

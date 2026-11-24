@@ -1,17 +1,21 @@
 require('dotenv').config();
 
 const crypto = require('crypto');
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const mysql = require('mysql2/promise');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = Number(process.env.PORT) || 5000;
 const DB_HOST = process.env.DB_HOST || '127.0.0.1';
 const DB_PORT = Number(process.env.DB_PORT) || 3306;
 const DB_USER = process.env.DB_USER || 'root';
 const DB_PASSWORD = process.env.DB_PASSWORD || '';
 const DB_NAME = process.env.DB_NAME || 'myspendmate';
+const DB_SSL = ['1', 'true', 'yes'].includes(String(process.env.DB_SSL || '').toLowerCase());
+const DB_SSL_CA = process.env.DB_SSL_CA || '';
 const ROOT_DIR = path.join(__dirname, '..');
 const SESSION_COOKIE = 'myspendmate_session';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -33,12 +37,26 @@ async function initializeDatabase() {
     throw new Error('DB_NAME may contain only letters, numbers, and underscores');
   }
 
-  const setupConnection = await mysql.createConnection({
+  let ssl;
+  if (DB_SSL) {
+    const caCandidates = DB_SSL_CA
+      ? [path.resolve(DB_SSL_CA), path.resolve(__dirname, DB_SSL_CA)]
+      : [path.join(__dirname, 'ca.pem'), path.join(ROOT_DIR, 'ca.pem')];
+    const caPath = caCandidates.find(candidate => fs.existsSync(candidate));
+    ssl = caPath
+      ? { ca: fs.readFileSync(caPath), rejectUnauthorized: true }
+      : { rejectUnauthorized: true };
+  }
+
+  const connectionOptions = {
     host: DB_HOST,
     port: DB_PORT,
     user: DB_USER,
-    password: DB_PASSWORD
-  });
+    password: DB_PASSWORD,
+    ...(ssl ? { ssl } : {})
+  };
+
+  const setupConnection = await mysql.createConnection(connectionOptions);
 
   try {
     await setupConnection.query(
@@ -49,10 +67,7 @@ async function initializeDatabase() {
   }
 
   pool = mysql.createPool({
-    host: DB_HOST,
-    port: DB_PORT,
-    user: DB_USER,
-    password: DB_PASSWORD,
+    ...connectionOptions,
     database: DB_NAME,
     waitForConnections: true,
     connectionLimit: 10,
